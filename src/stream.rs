@@ -8,36 +8,86 @@ pub fn build(
     config: cpal::SupportedStreamConfig,
     channels_to_record: &[usize],
     writers_in_stream: Arc<Mutex<Option<WriterHandles>>>,
+    bit_depth: Option<crate::config::WavBitDepth>,
 ) -> Result<cpal::Stream> {
     let stream_error_callback = move |err| {
         eprintln!("An error occurred on the input stream: {err}");
     };
 
     match config.sample_format() {
-        cpal::SampleFormat::I8 => Ok(device.build_input_stream(
-            &config.into(),
-            process::<i8, i8>(channels_to_record.to_vec(), writers_in_stream),
-            stream_error_callback,
-            None,
-        )?),
-        cpal::SampleFormat::I16 => Ok(device.build_input_stream(
-            &config.into(),
-            process::<i16, i16>(channels_to_record.to_vec(), writers_in_stream),
-            stream_error_callback,
-            None,
-        )?),
-        cpal::SampleFormat::I32 => Ok(device.build_input_stream(
-            &config.into(),
-            process::<i32, i32>(channels_to_record.to_vec(), writers_in_stream),
-            stream_error_callback,
-            None,
-        )?),
-        cpal::SampleFormat::F32 => Ok(device.build_input_stream(
-            &config.into(),
-            process::<f32, f32>(channels_to_record.to_vec(), writers_in_stream),
-            stream_error_callback,
-            None,
-        )?),
+        cpal::SampleFormat::I8 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<i8, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) => Ok(device.build_input_stream(&config.into(), process::<i8, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<i8, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                None => Ok(device.build_input_stream(&config.into(), process::<i8, i8>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::U8 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<u8, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) => Ok(device.build_input_stream(&config.into(), process::<u8, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<u8, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                None => Ok(device.build_input_stream(&config.into(), process::<u8, i8>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::I16 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) | None => Ok(device.build_input_stream(&config.into(), process::<i16, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) => Ok(device.build_input_stream(&config.into(), process::<i16, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<i16, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::U16 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) | None => Ok(device.build_input_stream(&config.into(), process::<u16, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) => Ok(device.build_input_stream(&config.into(), process::<u16, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<u16, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+
+        cpal::SampleFormat::I32 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<i32, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) | None => Ok(device.build_input_stream(&config.into(), process::<i32, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<i32, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::U32 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<u32, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) | None => Ok(device.build_input_stream(&config.into(), process::<u32, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<u32, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::I64 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<i64, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) | None => Ok(device.build_input_stream(&config.into(), process::<i64, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<i64, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::U64 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<u64, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) | None => Ok(device.build_input_stream(&config.into(), process::<u64, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) => Ok(device.build_input_stream(&config.into(), process::<u64, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::F32 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<f32, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) => Ok(device.build_input_stream(&config.into(), process::<f32, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) | None => Ok(device.build_input_stream(&config.into(), process::<f32, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
+        cpal::SampleFormat::F64 => {
+            match bit_depth {
+                Some(crate::config::WavBitDepth::Bits16) => Ok(device.build_input_stream(&config.into(), process::<f64, i16>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Bits24 | crate::config::WavBitDepth::Bits32) => Ok(device.build_input_stream(&config.into(), process::<f64, i32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+                Some(crate::config::WavBitDepth::Float32) | None => Ok(device.build_input_stream(&config.into(), process::<f64, f32>(channels_to_record.to_vec(), writers_in_stream), stream_error_callback, None)?),
+            }
+        }
         sample_format => bail!(
             "Sample format {:?} is not supported by this program.",
             sample_format

@@ -92,6 +92,10 @@ struct Cli {
     /// Example: smrec --duration 10
     #[clap(long)]
     duration: Option<String>,
+    /// Specify WAV output bit depth.
+    /// Example: smrec --bit-depth 16
+    #[clap(long)]
+    bit_depth: Option<String>,
     /// Configure OSC control.
     /// Example: smrec --osc "0.0.0.0:18000;255.255.255.255:18001"
     #[clap(long, value_delimiter = ';', num_args = 0..2, default_value = "EMPTY_HACK", hide_default_value = true)]
@@ -163,6 +167,7 @@ fn main() -> Result<()> {
             cli.out,
             choose_channels_to_record(cli.include, cli.exclude, &config)?,
             config.clone(),
+            cli.bit_depth.clone(),
         )?);
 
         let (to_main_thread, from_listener_thread) = crossbeam::channel::unbounded::<Action>();
@@ -338,6 +343,7 @@ pub fn new_recording(
         smrec_config.supported_cpal_stream_config(),
         smrec_config.channels_to_record(),
         Arc::clone(writer_handles),
+        smrec_config.bit_depth(),
     )?;
 
     new_stream.play()?;

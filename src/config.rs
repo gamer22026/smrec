@@ -92,10 +92,46 @@ pub fn choose_device(host: &cpal::Host, device: Option<String>) -> Result<cpal::
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WavBitDepth {
+    Bits16,
+    Bits24,
+    Bits32,
+    Float32,
+}
+
+impl std::str::FromStr for WavBitDepth {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "16" => Ok(Self::Bits16),
+            "24" => Ok(Self::Bits24),
+            "32" => Ok(Self::Bits32),
+            "f32" => Ok(Self::Float32),
+            _ => bail!("Invalid bit-depth: '{}'. Allowed: 16, 24, 32, f32", s),
+        }
+    }
+}
+
+fn deserialize_bit_depth<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value: Option<toml::Value> = Deserialize::deserialize(deserializer)?;
+    match value {
+        Some(toml::Value::String(s)) => Ok(Some(s)),
+        Some(toml::Value::Integer(i)) => Ok(Some(i.to_string())),
+        Some(_) => Err(serde::de::Error::custom("bit_depth must be a string or integer")),
+        None => Ok(None),
+    }
+}
+
 #[derive(Deserialize, Clone, Debug)]
 pub struct SmrecConfig {
     #[serde(deserialize_with = "deserialize_usize_keys_greater_than_0")]
     channel_names: HashMap<usize, String>,
+    #[serde(default, deserialize_with = "deserialize_bit_depth")]
+    bit_depth: Option<String>,
     #[serde(skip)]
     channels_to_record: Vec<usize>,
     #[serde(skip)]
@@ -110,6 +146,7 @@ impl SmrecConfig {
         out_path: Option<String>,
         channels_to_record: Vec<usize>,
         cpal_stream_config: SupportedStreamConfig,
+        bit_depth_cli: Option<String>,
     ) -> Result<Self> {
         let current_dir_config = Utf8PathBuf::from("./.smrec/config.toml");
 
@@ -155,6 +192,9 @@ impl SmrecConfig {
             });
             config.cpal_stream_config = Some(cpal_stream_config);
             config.out_path = out_path;
+            if let Some(bd) = bit_depth_cli {
+                config.bit_depth = Some(bd);
+            }
             return Ok(config);
         }
 
@@ -164,6 +204,7 @@ impl SmrecConfig {
         }
         Ok(Self {
             channel_names,
+            bit_depth: bit_depth_cli,
             channels_to_record,
             out_path,
             cpal_stream_config: Some(cpal_stream_config),
@@ -172,6 +213,10 @@ impl SmrecConfig {
 
     pub fn supported_cpal_stream_config(&self) -> SupportedStreamConfig {
         self.cpal_stream_config.clone().unwrap()
+    }
+
+    pub fn bit_depth(&self) -> Option<WavBitDepth> {
+        self.bit_depth.as_deref().and_then(|s| std::str::FromStr::from_str(s).ok())
     }
 
     pub fn channels_to_record(&self) -> &[usize] {
@@ -226,7 +271,7 @@ impl SmrecConfig {
         let mut writers = Vec::new();
         for channel_num in &self.channels_to_record {
             let name = self.get_channel_name_from_0_indexed_channel_num(*channel_num)?;
-            let spec = spec_from_config(&self.supported_cpal_stream_config());
+            let spec = spec_from_config(&self.supported_cpal_stream_config(), self.bit_depth());
             let writer = hound::WavWriter::create(base.join(&name), spec)
                 .expect("Failed to create wav writer.");
             writers.push(Arc::new(Mutex::new(Some(writer))));

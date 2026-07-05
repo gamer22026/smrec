@@ -14,14 +14,37 @@ pub fn sample_format(format: cpal::SampleFormat) -> hound::SampleFormat {
 }
 
 #[allow(clippy::cast_possible_truncation)]
-pub fn spec_from_config(config: &cpal::SupportedStreamConfig) -> hound::WavSpec {
+pub fn spec_from_config(
+    config: &cpal::SupportedStreamConfig,
+    bit_depth: Option<crate::config::WavBitDepth>,
+) -> hound::WavSpec {
+    let (bits_per_sample, sample_format) = match bit_depth {
+        Some(crate::config::WavBitDepth::Bits16) => (16, hound::SampleFormat::Int),
+        Some(crate::config::WavBitDepth::Bits24) => (24, hound::SampleFormat::Int),
+        Some(crate::config::WavBitDepth::Bits32) => (32, hound::SampleFormat::Int),
+        Some(crate::config::WavBitDepth::Float32) => (32, hound::SampleFormat::Float),
+        None => match config.sample_format() {
+            cpal::SampleFormat::I8 | cpal::SampleFormat::U8 => (8, hound::SampleFormat::Int),
+            cpal::SampleFormat::I16 | cpal::SampleFormat::U16 => (16, hound::SampleFormat::Int),
+            cpal::SampleFormat::I32 | cpal::SampleFormat::U32 | cpal::SampleFormat::I64 | cpal::SampleFormat::U64 => (32, hound::SampleFormat::Int),
+            cpal::SampleFormat::F32 | cpal::SampleFormat::F64 => (32, hound::SampleFormat::Float),
+            _ => (
+                (config.sample_format().sample_size() * 8) as u16,
+                if config.sample_format().is_float() {
+                    hound::SampleFormat::Float
+                } else {
+                    hound::SampleFormat::Int
+                },
+            ),
+        },
+    };
+
     hound::WavSpec {
         // Hardcoded because channels will be always mono.
         channels: 1,
         sample_rate: config.sample_rate().0 as _,
-        // Truncation is safe because we're only using 8, 16, 24 and 32 bit samples.
-        bits_per_sample: (config.sample_format().sample_size() * 8) as _,
-        sample_format: sample_format(config.sample_format()),
+        bits_per_sample,
+        sample_format,
     }
 }
 
